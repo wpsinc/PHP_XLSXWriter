@@ -17,6 +17,8 @@ class XLSXWriter
 	protected $temp_files = array();
 	protected $cell_styles = array();
 	protected $number_formats = array();
+	protected $freeze_rows = 0;
+	protected $freeze_cols = 0;
 
 	protected $current_sheet = '';
 
@@ -35,6 +37,16 @@ class XLSXWriter
 
 	public function setAuthor($author='') { $this->author=$author; }
 	public function setTempDir($tempdir='') { $this->tempdir=$tempdir; }
+
+    public function freezeRows($rows)
+    {
+        $this->freeze_rows = $rows;
+	}
+
+    public function freezeCols($cols)
+    {
+        $this->freeze_cols = $cols;
+	}
 
 	public function __destruct()
 	{
@@ -139,6 +151,28 @@ class XLSXWriter
 		$sheet->max_cell_tag_end = $sheet->file_writer->ftell();
 		$sheet->file_writer->write(  '<sheetViews>');
 		$sheet->file_writer->write(    '<sheetView colorId="64" defaultGridColor="true" rightToLeft="false" showFormulas="false" showGridLines="true" showOutlineSymbols="true" showRowColHeaders="true" showZeros="true" tabSelected="' . $tabselected . '" topLeftCell="A1" view="normal" windowProtection="false" workbookViewId="0" zoomScale="100" zoomScaleNormal="100" zoomScalePageLayoutView="100">');
+        if ($this->freeze_rows > 0 || $this->freeze_cols > 0) {
+            $activePane = 'topRight';
+            $freezeCell = self::xlsCell($this->freeze_rows, $this->freeze_cols);
+            $sheet->file_writer->write('<pane');
+            if ($this->freeze_cols > 0) {
+                $sheet->file_writer->write(' xSplit="' . ($this->freeze_cols) . '"');
+            }
+            if ($this->freeze_rows > 0) {
+                $sheet->file_writer->write(' ySplit="' . ($this->freeze_rows) . '"');
+                $activePane = ($this->freeze_cols > 0 ? 'bottomRight' : 'bottomLeft');
+            }
+            $sheet->file_writer->write(' topLeftCell="' . $freezeCell . '" activePane="' . $activePane . '" state="frozen"/>');
+            // need to write additional sections if both x + y frozen
+            if ($this->freeze_cols > 0 && $this->freeze_rows > 0) {
+                $sheet->file_writer->write('<selection pane="topRight"/><selection pane="bottomLeft"/>');
+            }
+            $activeCell = (!empty($this->activeCell) ? $this->activeCell : $freezeCell);
+        } else {
+            $activePane = 'topLeft';
+            $activeCell = (!empty($this->activeCell) ? $this->activeCell : 'A1');
+        }
+        $sheet->file_writer->write(      '<selection activeCell="'.$activeCell.'" pane="'.$activePane.'" sqref="'.$activeCell.'" activeCellId="0"/>');
 		$sheet->file_writer->write(      '<selection activeCell="A1" activeCellId="0" pane="topLeft" sqref="A1"/>');
 		$sheet->file_writer->write(    '</sheetView>');
 		$sheet->file_writer->write(  '</sheetViews>');
